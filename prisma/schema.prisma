@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Log setiap incident yang ditemukan
+model Incident {
+  id          String   @id @default(cuid())
+  appSlug     String   // "zpos", "zgold", dll
+  serviceId   String   // Railway service ID
+  errorType   String   // "build_failure", "runtime_crash", "health_fail"
+  errorRaw    String   // raw log snippet
+  status      String   @default("open") // open | fixing | resolved | escalated
+  fixType     String?  // "config", "redeploy", "github_pr", "notify"
+  fixResult   String?  // hasil setelah fix
+  prUrl       String?  // kalau fix via PR
+  confidence  Float?   // confidence score dari LLM
+  createdAt   DateTime @default(now())
+  resolvedAt  DateTime?
+  playbook    Playbook? @relation(fields: [playbookId], references: [id])
+  playbookId  String?
+}
+
+// Knowledge base: pattern error → solusi yang sudah terbukti
+model Playbook {
+  id           String     @id @default(cuid())
+  errorPattern String     @unique // regex atau keyword pattern
+  errorType    String
+  fixType      String
+  fixPayload   Json       // instruksi fix terstruktur
+  successCount Int        @default(0)
+  failCount    Int        @default(0)
+  lastUsed     DateTime?
+  createdAt    DateTime   @default(now())
+  incidents    Incident[]
+}
+
+// Registry semua Zomet apps yang di-monitor
+model ZometApp {
+  id            String   @id @default(cuid())
+  slug          String   @unique // "zpos", "zgold", dll
+  name          String
+  railwayServiceId String
+  railwayProjectId String
+  healthUrl     String?  // endpoint health check
+  githubRepo    String?  // "djvpri/zpos"
+  isActive      Boolean  @default(true)
+  lastChecked   DateTime?
+  lastStatus    String   @default("unknown")
+}
