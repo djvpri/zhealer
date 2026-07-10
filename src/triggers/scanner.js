@@ -17,6 +17,26 @@ async function railwayQuery(query, variables = {}) {
   return res.data
 }
 
+// Auto-fetch semua project milik akun ini
+async function getAllProjects() {
+  const query = `
+    query {
+      me {
+        projects {
+          edges {
+            node {
+              id
+              name
+            }
+          }
+        }
+      }
+    }
+  `
+  const data = await railwayQuery(query)
+  return data?.data?.me?.projects?.edges?.map(e => e.node) || []
+}
+
 // Ambil semua deployments terbaru per project
 async function getRecentDeployments(projectId) {
   const query = `
@@ -150,7 +170,7 @@ async function pingHealthCheck(app) {
 
 // ─── Main scanner ──────────────────────────────────────────────────────────
 
-async function runScan(projectId) {
+async function runScan() {
   console.log(`[Scanner] Mulai scan ${new Date().toISOString()}`)
   const incidents = []
 
@@ -171,36 +191,51 @@ async function runScan(projectId) {
     }
   }
 
-  // 2. Scan Railway deployment logs
-  if (projectId) {
-    console.log('[Scanner] Scan Railway deployment logs...')
-    try {
-      const deployments = await getRecentDeployments(projectId)
+  // 2. Auto-fetch semua Railway project lalu scan logs-nya
+  console.log('[Scanner] Fetch semua Railway projects...')
+  try {
+    const projects = await getAllProjects()
+    console.log(`[Scanner] Ditemukan ${projects.length} project: ${projects.map(p => p.name).join(', ')}`)
 
-      // Filter hanya deployment yang failed atau baru
-      const failedDeployments = deployments.filter(d =>
-        d.status === 'FAILED' || d.status === 'CRASHED'
-      )
+    for (const project of projects) {
+      console.log(`[Scanner] Scan project: ${project.name} (${project.id})`)
+      try {
+        const deployments = await getRecentDeployments(project.id)
+        const failedDeployments = deployments.filter(d =>
+          d.status === 'FAILED' || d.status === 'CRASHED'
+        )
 
-      for (const deployment of failedDeployments) {
-        const logs = await getDeploymentLogs(deployment.id)
-        const errors = detectErrors(logs)
-
-        for (const error of errors) {
-          incidents.push({
-            appSlug: deployment.service?.name?.toLowerCase() || 'unknown',
-            serviceId: deployment.service?.id,
-            deploymentId: deployment.id,
-            errorType: error.type,
-            errorRaw: error.snippet,
-            severity: error.severity,
-            source: 'railway_logs'
-          })
+        if (failedDeployments.length === 0) {
+          console.log(`[Scanner] ${project.name}: tidak ada deployment gagal`)
+          continue
         }
+
+        console.log(`[Scanner] ${project.name}: ${failedDeployments.length} deployment gagal ditemukan`)
+
+        for (const deployment of failedDeployments) {
+          const logs = await getDeploymentLogs(deployment.id)
+          const errors = detectErrors(logs)
+
+          for (const error of errors) {
+            incidents.push({
+              appSlug: deployment.service?.name?.toLowerCase() || project.name.toLowerCase(),
+              serviceId: deployment.service?.id,
+              deploymentId: deployment.id,
+              projectId: project.id,
+              projectName: project.name,
+              errorType: error.type,
+              errorRaw: error.snippet,
+              severity: error.severity,
+              source: 'railway_logs'
+            })
+          }
+        }
+      } catch (err) {
+        console.error(`[Scanner] Gagal scan project ${project.name}:`, err.message)
       }
-    } catch (err) {
-      console.error('[Scanner] Railway API error:', err.message)
     }
+  } catch (err) {
+    console.error('[Scanner] Gagal fetch Railway projects:', err.message)
   }
 
   console.log(`[Scanner] Selesai. Ditemukan ${incidents.length} incident.`)

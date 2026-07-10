@@ -7,7 +7,7 @@ module.exports = {
   // Railway API
   RAILWAY_API_URL: 'https://backboard.railway.app/graphql/v2',
   RAILWAY_TOKEN: process.env.RAILWAY_TOKEN,
-  RAILWAY_PROJECT_ID: process.env.RAILWAY_PROJECT_ID,
+  // Tidak perlu PROJECT_ID manual — healer akan auto-fetch semua project via API
 
   // LLM - 9router atau Anthropic
   LLM_BASE_URL: process.env.LLM_BASE_URL || 'https://api.anthropic.com',

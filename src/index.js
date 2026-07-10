@@ -20,7 +20,7 @@ async function healLoop() {
   let incidents = []
 
   try {
-    incidents = await runScan(config.RAILWAY_PROJECT_ID)
+    incidents = await runScan()
   } catch (err) {
     console.error('[Healer] Scanner error:', err.message)
     return
