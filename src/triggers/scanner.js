@@ -77,9 +77,9 @@ async function pingHealthCheck(app) {
     if (!ok) {
       return { status: 'unhealthy', app: app.slug, errorType: 'server_error', snippet: `HTTP ${res.status} dari ${app.healthUrl}` }
     }
-    // App sehat — resolve semua incident open/fixing yang belum ditutup
+    // App sehat — resolve semua incident yang belum ditutup
     const resolved = await prisma.incident.updateMany({
-      where: { appSlug: app.slug, status: { in: ['open', 'fixing'] } },
+      where: { appSlug: app.slug, status: { in: ['open', 'fixing', 'escalated', 'pending_review'] } },
       data: { status: 'resolved', resolvedAt: new Date() }
     })
     if (resolved.count > 0) {
