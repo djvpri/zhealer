@@ -27,9 +27,23 @@ async function updateIncident(id, data) {
   return prisma.incident.update({ where: { id }, data })
 }
 
+// Cek apakah sudah ada incident terbuka untuk app+errorType yang sama
+async function findOpenIncident(appSlug, errorType) {
+  return prisma.incident.findFirst({
+    where: {
+      appSlug,
+      errorType,
+      status: { in: ['open', 'fixing', 'pending_review'] }
+    },
+    orderBy: { createdAt: 'desc' }
+  })
+}
+
 async function learnFromFix(incident, diagnosis) {
-  if (!incident.errorRaw || diagnosis.confidence < 0.9) return
+  if (!incident.errorRaw || diagnosis.confidence < 90) return
   try {
+    // Gunakan snippet errorRaw sebagai pattern agar matching lebih akurat
+    const pattern = incident.errorRaw.substring(0, 120).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     await prisma.playbook.upsert({
       where: { errorPattern: incident.errorType },
       update: { successCount: { increment: 1 }, lastUsed: new Date() },
@@ -72,10 +86,9 @@ async function updateAppStatus(slug, status) {
   return prisma.zometApp.update({
     where: { slug },
     data: { lastStatus: status, lastChecked: new Date() }
-  }).catch(() => {}) // skip kalau app tidak ada di DB
+  }).catch(() => {})
 }
 
-// Seed apps dari config ke DB kalau DB masih kosong
 async function seedAppsIfEmpty(apps) {
   const count = await prisma.zometApp.count()
   if (count > 0) return
@@ -99,6 +112,6 @@ async function seedAppsIfEmpty(apps) {
 
 module.exports = {
   prisma,
-  findPlaybook, createIncident, updateIncident, learnFromFix,
+  findPlaybook, createIncident, updateIncident, findOpenIncident, learnFromFix,
   getActiveApps, addApp, updateApp, deleteApp, updateAppStatus, seedAppsIfEmpty
 }

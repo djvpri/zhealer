@@ -1,13 +1,15 @@
 const axios = require('axios')
-const { ZOMET_APPS, HEALTH_CHECK_TIMEOUT } = require('../config')
+const { HEALTH_CHECK_TIMEOUT } = require('../config')
+const { getActiveApps } = require('../db')
 
-// Tunggu deployment Railway selesai (polling)
 async function waitForDeployment(appSlug, maxWaitMs = 5 * 60 * 1000) {
-  const app = ZOMET_APPS.find(a => a.slug === appSlug)
+  // Cari healthUrl dari DB, bukan dari config hardcoded
+  const apps = await getActiveApps()
+  const app = apps.find(a => a.slug === appSlug)
   if (!app?.healthUrl) return { verified: false, reason: 'no_health_url' }
 
   const startTime = Date.now()
-  const pollInterval = 15000 // cek tiap 15 detik
+  const pollInterval = 15000
 
   console.log(`[Validator] Menunggu ${appSlug} sehat kembali...`)
 
@@ -36,17 +38,13 @@ async function waitForDeployment(appSlug, maxWaitMs = 5 * 60 * 1000) {
 }
 
 async function verifyFix(incident, fixResult) {
-  // Kalau di-escalate, tidak perlu verify
   if (fixResult.escalated) return { verified: 'escalated' }
 
-  // Kalau ada PR (github_pr fix), tidak ada yang bisa diverify sekarang
   const hasPR = fixResult.results?.some(r => r.prUrl)
   if (hasPR) return { verified: 'pending_merge' }
 
-  // Kalau redeploy, tunggu app sehat
   const hasRedeploy = fixResult.results?.some(r => r.action === 'railway_redeploy')
   if (hasRedeploy) {
-    // Tunggu 30 detik dulu baru mulai polling (Railway butuh waktu spin up)
     await new Promise(r => setTimeout(r, 30000))
     return waitForDeployment(incident.appSlug)
   }

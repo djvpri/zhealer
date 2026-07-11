@@ -102,8 +102,14 @@ async function executeAction(action, incident) {
 
     case 'railway_redeploy': {
       const { serviceId, environmentId } = action.payload
-      await redeployService(serviceId || incident.serviceId, environmentId)
-      return { success: true, message: `Redeploy triggered untuk service ${serviceId}` }
+      // Prioritas: payload → incident (dari scanner yang sudah capture environmentId)
+      const resolvedServiceId = serviceId || incident.serviceId
+      const resolvedEnvId = environmentId || incident.environmentId
+      if (!resolvedEnvId) {
+        return { success: false, message: `environmentId tidak tersedia untuk service ${resolvedServiceId}` }
+      }
+      await redeployService(resolvedServiceId, resolvedEnvId)
+      return { success: true, message: `Redeploy triggered untuk service ${resolvedServiceId}` }
     }
 
     case 'railway_rollback': {

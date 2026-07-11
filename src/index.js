@@ -8,7 +8,7 @@ const { diagnoseIncident } = require('./analyzer/diagnosis')
 const { executeFix } = require('./executor/fixer')
 const { verifyFix } = require('./validator/verify')
 const {
-  findPlaybook, createIncident, updateIncident, learnFromFix, prisma,
+  findPlaybook, createIncident, updateIncident, findOpenIncident, learnFromFix, prisma,
   getActiveApps, addApp, updateApp, deleteApp, seedAppsIfEmpty
 } = require('./db')
 const config = require('./config')
@@ -40,6 +40,13 @@ async function healLoop() {
 
   for (const incident of incidents) {
     console.log(`\n--- Proses: ${incident.appSlug} / ${incident.errorType} ---`)
+
+    // Skip kalau sudah ada incident terbuka untuk app+errorType yang sama
+    const existing = await findOpenIncident(incident.appSlug, incident.errorType)
+    if (existing) {
+      console.log(`[Healer] Skip — incident #${existing.id} sudah open untuk ${incident.appSlug}/${incident.errorType}`)
+      continue
+    }
 
     let dbIncident
     try {

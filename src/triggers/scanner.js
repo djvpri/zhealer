@@ -21,7 +21,7 @@ async function getRecentDeployments(projectId) {
   const query = `
     query GetDeployments($projectId: String!) {
       deployments(input: { projectId: $projectId }) {
-        edges { node { id status createdAt service { id name } } }
+        edges { node { id status createdAt environmentId service { id name } } }
       }
     }
   `
@@ -86,9 +86,12 @@ async function runScan() {
   console.log(`[Scanner] Mulai scan ${new Date().toISOString()}`)
   const incidents = []
 
-  // Ambil apps dari DB (bukan dari config hardcoded)
   const apps = await getActiveApps()
   console.log(`[Scanner] ${apps.length} apps aktif di database`)
+
+  // Buat set slug/name terdaftar untuk filter Railway projects
+  const registeredSlugs = new Set(apps.map(a => a.slug.toLowerCase()))
+  const registeredNames = new Set(apps.map(a => a.name.toLowerCase()))
 
   // 1. Health check semua app
   console.log('[Scanner] Ping health checks...')
@@ -105,11 +108,16 @@ async function runScan() {
     }
   }
 
-  // 2. Scan Railway logs
-  console.log('[Scanner] Fetch semua Railway projects...')
+  // 2. Scan Railway logs — hanya project yang terdaftar di DB
+  console.log('[Scanner] Fetch Railway projects...')
   try {
-    const projects = await getAllProjects()
-    console.log(`[Scanner] ${projects.length} project ditemukan`)
+    const allProjects = await getAllProjects()
+    const projects = allProjects.filter(p => {
+      const name = p.name.toLowerCase()
+      return registeredSlugs.has(name) || registeredNames.has(name) ||
+        [...registeredSlugs].some(slug => name.includes(slug) || slug.includes(name))
+    })
+    console.log(`[Scanner] ${projects.length}/${allProjects.length} project relevan ditemukan`)
 
     for (const project of projects) {
       try {
@@ -125,6 +133,7 @@ async function runScan() {
             incidents.push({
               appSlug: deployment.service?.name?.toLowerCase() || project.name.toLowerCase(),
               serviceId: deployment.service?.id,
+              environmentId: deployment.environmentId,
               deploymentId: deployment.id,
               projectId: project.id,
               errorType: error.type,
