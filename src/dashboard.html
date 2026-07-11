@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZHealer Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1f2d45;
+    --accent: #3b82f6;
+    --accent-dim: #1d3f6e;
+    --green: #10b981;
+    --green-dim: #064e3b;
+    --red: #ef4444;
+    --red-dim: #450a0a;
+    --yellow: #f59e0b;
+    --yellow-dim: #451a03;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --text-dim: #94a3b8;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: -0.3px;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .last-scan {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+  }
+
+  .pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── Layout ── */
+  main {
+    padding: 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* ── Stats Row ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    font-family: var(--mono);
+    line-height: 1;
+  }
+
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.yellow { color: var(--yellow); }
+  .stat-value.blue { color: var(--accent); }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  /* ── Section header ── */
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    padding: 7px 14px;
+    border-radius: 6px;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+    transition: opacity 0.15s;
+  }
+  .btn:hover { opacity: 0.85; }
+  .btn:active { opacity: 0.7; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-ghost { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+
+  /* ── Incidents table ── */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: var(--surface2); }
+
+  .app-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: var(--mono);
+    background: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  /* ── Status badges ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+  }
+
+  .badge.resolved { background: var(--green-dim); color: var(--green); }
+  .badge.open { background: var(--red-dim); color: var(--red); }
+  .badge.fixing { background: var(--accent-dim); color: var(--accent); }
+  .badge.escalated { background: var(--yellow-dim); color: var(--yellow); }
+
+  .badge.resolved .badge-dot { background: var(--green); }
+  .badge.open .badge-dot { background: var(--red); }
+  .badge.fixing .badge-dot { background: var(--accent); animation: pulse 1s infinite; }
+  .badge.escalated .badge-dot { background: var(--yellow); }
+
+  .error-type {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .time-cell {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .pr-link {
+    font-size: 11px;
+    color: var(--accent);
+    text-decoration: none;
+    font-family: var(--mono);
+  }
+  .pr-link:hover { text-decoration: underline; }
+
+  /* ── Apps grid ── */
+  .apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  .app-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    transition: border-color 0.2s;
+  }
+
+  .app-card.healthy { border-color: #064e3b; }
+  .app-card.unhealthy { border-color: #450a0a; }
+  .app-card.checking { border-color: var(--border); }
+
+  .app-card-name {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: var(--mono);
+    margin-bottom: 6px;
+  }
+
+  .app-card-status {
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: var(--green); }
+  .dot-red { background: var(--red); }
+  .dot-gray { background: var(--text-muted); }
+
+  /* ── Log snippet ── */
+  .log-snippet {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin-top: 4px;
+    max-height: 60px;
+    overflow: hidden;
+    white-space: pre-wrap;
+    word-break: break-all;
+    cursor: pointer;
+    transition: max-height 0.2s;
+  }
+  .log-snippet.expanded { max-height: 200px; overflow-y: auto; }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-muted);
+  }
+
+  .empty-icon { font-size: 32px; margin-bottom: 12px; }
+  .empty-text { font-size: 13px; }
+
+  /* ── Loading ── */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    main { padding: 16px; }
+    th:nth-child(4), td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🏥</div>
+    ZHealer
+  </div>
+  <div class="header-right">
+    <span class="last-scan" id="lastScan">Memuat...</span>
+    <div class="pulse" id="statusPulse"></div>
+    <button class="btn btn-primary" onclick="triggerScan()">▶ Scan Sekarang</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">Total Incident</div>
+      <div class="stat-value blue" id="statTotal">—</div>
+      <div class="stat-sub">semua waktu</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Berhasil Diperbaiki</div>
+      <div class="stat-value green" id="statResolved">—</div>
+      <div class="stat-sub" id="statResolvedPct">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Perlu Perhatian</div>
+      <div class="stat-value yellow" id="statEscalated">—</div>
+      <div class="stat-sub">eskalasi</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sedang Proses</div>
+      <div class="stat-value red" id="statOpen">—</div>
+      <div class="stat-sub">open + fixing</div>
+    </div>
+  </div>
+
+  <!-- App health grid -->
+  <div class="section-header">
+    <div class="section-title">Status App</div>
+    <button class="btn btn-ghost" onclick="loadData()">↻ Refresh</button>
+  </div>
+  <div class="apps-grid" id="appsGrid">
+    <!-- populated by JS -->
+  </div>
+
+  <!-- Incidents table -->
+  <div class="section-header">
+    <div class="section-title">Riwayat Incident</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="filterStatus" onchange="loadData()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
+        <option value="">Semua Status</option>
+        <option value="open">Open</option>
+        <option value="fixing">Fixing</option>
+        <option value="resolved">Resolved</option>
+        <option value="escalated">Escalated</option>
+      </select>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>App</th>
+          <th>Error</th>
+          <th>Status</th>
+          <th>Fix</th>
+          <th>Waktu</th>
+        </tr>
+      </thead>
+      <tbody id="incidentsBody">
+        <tr><td colspan="5"><div class="skeleton" style="height:40px;margin:8px"></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<script>
+const ZOMET_APPS = [
+  { slug: 'zone',       name: 'Z One',      healthUrl: 'https://zone.zomet.my.id/api/health' },
+  { slug: 'zpos',       name: 'ZPos',       healthUrl: 'https://zpos.zomet.my.id/api/health' },
+  { slug: 'zgold',      name: 'ZGold',      healthUrl: 'https://zgold.zomet.my.id/api/health' },
+  { slug: 'zresto',     name: 'Z Resto',    healthUrl: 'https://zresto.zomet.my.id/api/health' },
+  { slug: 'zmedics',    name: 'ZMedics',    healthUrl: 'https://zmedics.zomet.my.id/api/health' },
+  { slug: 'zbengkel',   name: 'ZBengkel',   healthUrl: 'https://zbengkel.zomet.my.id/api/health' },
+  { slug: 'zrooms',     name: 'Z-Rooms',    healthUrl: 'https://z-rooms.zomet.my.id/api/health' },
+  { slug: 'zabsen',     name: 'Z-Absen',    healthUrl: 'https://z-absen.zomet.my.id/api/health' },
+  { slug: 'zface',      name: 'ZFace',      healthUrl: 'https://zface.zomet.my.id/api/health' },
+  { slug: 'zgym',       name: 'ZGym',       healthUrl: null },
+  { slug: 'zbarber',    name: 'ZBarber',    healthUrl: null },
+  { slug: 'ztransport', name: 'ZTransport', healthUrl: null },
+  { slug: 'zlaundry',   name: 'ZLaundry',   healthUrl: null },
+]
+
+let appStatuses = {}
+
+function timeAgo(dateStr) {
+  const diff = (Date.now() - new Date(dateStr)) / 1000
+  if (diff < 60) return `${Math.floor(diff)}d lalu`
+  if (diff < 3600) return `${Math.floor(diff/60)}m lalu`
+  if (diff < 86400) return `${Math.floor(diff/3600)}j lalu`
+  return `${Math.floor(diff/86400)}h lalu`
+}
+
+function statusBadge(status) {
+  return `<span class="badge ${status}"><span class="badge-dot"></span>${status}</span>`
+}
+
+async function pingApps() {
+  const grid = document.getElementById('appsGrid')
+  grid.innerHTML = ZOMET_APPS.map(app => `
+    <div class="app-card checking" id="app-${app.slug}">
+      <div class="app-card-name">${app.name}</div>
+      <div class="app-card-status">
+        <div class="dot dot-gray"></div>
+        <span style="color:var(--text-muted)">Mengecek...</span>
+      </div>
+    </div>
+  `).join('')
+
+  for (const app of ZOMET_APPS) {
+    const card = document.getElementById(`app-${app.slug}`)
+    if (!app.healthUrl) {
+      card.innerHTML = `
+        <div class="app-card-name">${app.name}</div>
+        <div class="app-card-status"><div class="dot dot-gray"></div><span style="color:var(--text-muted)">No health check</span></div>
+      `
+      appStatuses[app.slug] = 'unknown'
+      continue
+    }
+
+    try {
+      const res = await fetch(`/proxy-health?url=${encodeURIComponent(app.healthUrl)}`, { signal: AbortSignal.timeout(8000) })
+      const data = await res.json()
+      const ok = data.ok
+      card.className = `app-card ${ok ? 'healthy' : 'unhealthy'}`
+      card.innerHTML = `
+        <div class="app-card-name">${app.name}</div>
+        <div class="app-card-status">
+          <div class="dot ${ok ? 'dot-green' : 'dot-red'}"></div>
+          <span style="color:${ok ? 'var(--green)' : 'var(--red)'}">${ok ? 'Sehat' : 'Error'}</span>
+        </div>
+      `
+      appStatuses[app.slug] = ok ? 'healthy' : 'unhealthy'
+    } catch {
+      card.className = 'app-card unhealthy'
+      card.innerHTML = `
+        <div class="app-card-name">${app.name}</div>
+        <div class="app-card-status"><div class="dot dot-red"></div><span style="color:var(--red)">Tidak bisa direach</span></div>
+      `
+      appStatuses[app.slug] = 'unreachable'
+    }
+  }
+}
+
+async function loadData() {
+  const filter = document.getElementById('filterStatus').value
+  const url = `/status${filter ? `?status=${filter}` : ''}`
+
+  try {
+    const res = await fetch(url)
+    const incidents = await res.json()
+
+    // Update stats
+    const total = incidents.length
+    const resolved = incidents.filter(i => i.status === 'resolved').length
+    const escalated = incidents.filter(i => i.status === 'escalated').length
+    const open = incidents.filter(i => i.status === 'open' || i.status === 'fixing').length
+
+    document.getElementById('statTotal').textContent = total
+    document.getElementById('statResolved').textContent = resolved
+    document.getElementById('statResolvedPct').textContent = total ? `${Math.round(resolved/total*100)}% success rate` : '—'
+    document.getElementById('statEscalated').textContent = escalated
+    document.getElementById('statOpen').textContent = open
+
+    // Update table
+    const tbody = document.getElementById('incidentsBody')
+    if (incidents.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5">
+        <div class="empty">
+          <div class="empty-icon">✅</div>
+          <div class="empty-text">Tidak ada incident${filter ? ` dengan status "${filter}"` : ''}</div>
+        </div>
+      </td></tr>`
+      return
+    }
+
+    tbody.innerHTML = incidents.map(inc => `
+      <tr>
+        <td><span class="app-badge">${inc.appSlug}</span></td>
+        <td>
+          <div class="error-type">${inc.errorType}</div>
+          ${inc.errorRaw ? `<div class="log-snippet" onclick="this.classList.toggle('expanded')">${escHtml(inc.errorRaw.substring(0, 300))}</div>` : ''}
+        </td>
+        <td>${statusBadge(inc.status)}</td>
+        <td>
+          ${inc.prUrl ? `<a class="pr-link" href="${escHtml(inc.prUrl)}" target="_blank">↗ Lihat PR</a>` : ''}
+          ${inc.fixType ? `<div style="font-size:11px;color:var(--text-muted);margin-top:3px">${inc.fixType}</div>` : ''}
+          ${inc.confidence ? `<div style="font-size:11px;color:var(--text-muted)">${Math.round(inc.confidence*100)}% confidence</div>` : ''}
+        </td>
+        <td class="time-cell">${timeAgo(inc.createdAt)}</td>
+      </tr>
+    `).join('')
+
+    // Update last scan
+    document.getElementById('lastScan').textContent = `Update: ${new Date().toLocaleTimeString('id-ID')}`
+  } catch (err) {
+    console.error(err)
+  }
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+}
+
+async function triggerScan() {
+  const btn = document.querySelector('.btn-primary')
+  btn.textContent = '⏳ Scanning...'
+  btn.disabled = true
+  try {
+    await fetch('/trigger', { method: 'POST' })
+    setTimeout(() => loadData(), 2000)
+  } finally {
+    setTimeout(() => {
+      btn.textContent = '▶ Scan Sekarang'
+      btn.disabled = false
+    }, 3000)
+  }
+}
+
+// Auto refresh tiap 30 detik
+setInterval(loadData, 30000)
+
+// Initial load
+loadData()
+pingApps()
+</script>
+</body>
+</html>

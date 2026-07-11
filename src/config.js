@@ -18,10 +18,6 @@ module.exports = {
   GITHUB_TOKEN: process.env.GITHUB_TOKEN,
   GITHUB_USERNAME: 'djvpri',
 
-  // WhatsApp notification via clawdbot
-  CLAWDBOT_WEBHOOK_URL: process.env.CLAWDBOT_WEBHOOK_URL,
-  WA_NOTIFY_NUMBER: process.env.WA_NOTIFY_NUMBER, // nomor WA kamu
-
   // Healer settings
   CRON_INTERVAL: process.env.CRON_INTERVAL || '*/30 * * * *', // tiap 30 menit
   HEALTH_CHECK_TIMEOUT: 10000, // 10 detik

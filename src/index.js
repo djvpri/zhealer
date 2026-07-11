@@ -1,11 +1,13 @@
 require('dotenv').config()
 const cron = require('node-cron')
 const express = require('express')
+const path = require('path')
+const axios = require('axios')
 const { runScan } = require('./triggers/scanner')
 const { diagnoseIncident } = require('./analyzer/diagnosis')
-const { executeFix, notifyWA } = require('./executor/fixer')
+const { executeFix } = require('./executor/fixer')
 const { verifyFix } = require('./validator/verify')
-const { findPlaybook, createIncident, updateIncident, learnFromFix } = require('./db')
+const { findPlaybook, createIncident, updateIncident, learnFromFix, prisma } = require('./db')
 const config = require('./config')
 
 const app = express()
@@ -38,7 +40,6 @@ async function healLoop() {
 
     let dbIncident
     try {
-      // Simpan incident ke DB
       dbIncident = await createIncident({
         appSlug: incident.appSlug,
         serviceId: incident.serviceId || '',
@@ -47,10 +48,7 @@ async function healLoop() {
         status: 'open'
       })
 
-      // Cek playbook dulu
       const playbook = await findPlaybook(incident.errorType, incident.errorRaw)
-
-      // Diagnosa
       const diagnosis = await diagnoseIncident(incident, playbook)
       console.log(`[Healer] Diagnosis: ${diagnosis.fix_type} (confidence: ${diagnosis.confidence})`)
 
@@ -60,14 +58,10 @@ async function healLoop() {
         confidence: diagnosis.confidence
       })
 
-      // Eksekusi fix
       const fixResult = await executeFix(incident, diagnosis)
-
-      // Verifikasi
       const verification = await verifyFix(incident, fixResult)
       console.log(`[Healer] Verifikasi: ${JSON.stringify(verification)}`)
 
-      // Update status final
       const resolved = verification.verified === true
       await updateIncident(dbIncident.id, {
         status: resolved ? 'resolved' : fixResult.escalated ? 'escalated' : 'fixing',
@@ -76,12 +70,11 @@ async function healLoop() {
         resolvedAt: resolved ? new Date() : null
       })
 
-      // Belajar dari fix yang berhasil
       if (resolved) {
         await learnFromFix(incident, diagnosis)
-        console.log(`[Healer] ✅ ${incident.appSlug} berhasil di-fix dan verified!`)
+        console.log(`[Healer] ✅ ${incident.appSlug} berhasil di-fix!`)
       } else if (fixResult.escalated) {
-        console.log(`[Healer] ⚠️ ${incident.appSlug} di-eskalasi ke WA`)
+        console.log(`[Healer] ⚠️ ${incident.appSlug} escalated: ${fixResult.reason}`)
       }
 
     } catch (err) {
@@ -92,10 +85,6 @@ async function healLoop() {
           fixResult: `Internal error: ${err.message}`
         }).catch(() => {})
       }
-      // Notif WA kalau ada error tak terduga
-      await notifyWA(
-        `🚨 *Zomet Healer Error*\n\nGagal proses incident di *${incident.appSlug}*\n\nError: ${err.message}`
-      ).catch(() => {})
     }
   }
 
@@ -104,26 +93,56 @@ async function healLoop() {
 
 // ─── HTTP endpoints ────────────────────────────────────────────────────────
 
-// Manual trigger (bisa dipanggil dari Z-Dashboard atau webhook Railway)
+// Dashboard UI
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dashboard.html'))
+})
+
+// Proxy health check (hindari CORS issue dari browser)
+app.get('/proxy-health', async (req, res) => {
+  const { url } = req.query
+  if (!url) return res.json({ ok: false, error: 'no url' })
+  try {
+    const result = await axios.get(url, { timeout: 8000, validateStatus: () => true })
+    res.json({ ok: result.status < 400, status: result.status, data: result.data })
+  } catch (err) {
+    res.json({ ok: false, error: err.message })
+  }
+})
+
+// Manual trigger
 app.post('/trigger', async (req, res) => {
   console.log('[API] Manual trigger diterima')
   res.json({ ok: true, message: 'Heal loop dimulai' })
   healLoop().catch(console.error)
 })
 
-// Health check endpoint sendiri
+// Health check zhealer sendiri
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
-// Status: incident terbaru
+// Incident list dengan filter opsional
 app.get('/status', async (req, res) => {
-  const { prisma } = require('./db')
+  const { status } = req.query
+  const where = status ? { status } : {}
   const incidents = await prisma.incident.findMany({
+    where,
     orderBy: { createdAt: 'desc' },
-    take: 20
+    take: 50
   })
   res.json(incidents)
+})
+
+// Stats summary
+app.get('/stats', async (req, res) => {
+  const [total, resolved, escalated, open] = await Promise.all([
+    prisma.incident.count(),
+    prisma.incident.count({ where: { status: 'resolved' } }),
+    prisma.incident.count({ where: { status: 'escalated' } }),
+    prisma.incident.count({ where: { status: { in: ['open', 'fixing'] } } }),
+  ])
+  res.json({ total, resolved, escalated, open })
 })
 
 // ─── Cron job ──────────────────────────────────────────────────────────────
@@ -140,12 +159,13 @@ app.listen(config.PORT, () => {
   console.log(`\n🏥 Zomet Healer berjalan di port ${config.PORT}`)
   console.log(`📅 Cron: ${config.CRON_INTERVAL}`)
   console.log(`🔍 Monitoring ${config.ZOMET_APPS.length} apps`)
-  console.log(`🤖 LLM: ${config.LLM_BASE_URL} / ${config.LLM_MODEL}`)
-  console.log('\nEndpoints:')
-  console.log('  POST /trigger  — manual trigger')
-  console.log('  GET  /health   — health check')
-  console.log('  GET  /status   — incident terbaru\n')
+  console.log(`🌐 Dashboard: http://localhost:${config.PORT}`)
+  console.log(`\nEndpoints:`)
+  console.log(`  GET  /          — Dashboard UI`)
+  console.log(`  POST /trigger   — Manual trigger scan`)
+  console.log(`  GET  /health    — Health check`)
+  console.log(`  GET  /status    — Incident list`)
+  console.log(`  GET  /stats     — Stats summary\n`)
 
-  // Jalankan sekali saat start
   setTimeout(() => healLoop().catch(console.error), 5000)
 })
