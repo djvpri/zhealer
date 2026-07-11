@@ -596,3 +596,156 @@ pingApps()
 </script>
 </body>
 </html>
+<script>
+// Inject ke atas script yang sudah ada — tambah modal kelola app
+
+// Tambah tombol ke header apps grid
+document.addEventListener('DOMContentLoaded', () => {
+  // Override section-header apps
+  const appsSectionHeader = document.querySelector('.section-header')
+  if (appsSectionHeader) {
+    const refreshBtn = appsSectionHeader.querySelector('.btn-ghost')
+    if (refreshBtn) {
+      const addBtn = document.createElement('button')
+      addBtn.className = 'btn btn-primary'
+      addBtn.style.fontSize = '12px'
+      addBtn.textContent = '+ Tambah App'
+      addBtn.onclick = () => showAddAppModal()
+      refreshBtn.parentNode.insertBefore(addBtn, refreshBtn)
+    }
+  }
+})
+
+// Modal HTML
+const modalHtml = `
+<div id="appModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:420px;max-width:90vw">
+    <div style="font-size:15px;font-weight:600;margin-bottom:20px" id="modalTitle">Tambah App Baru</div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">Slug *</label>
+        <input id="fSlug" placeholder="znewapp" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-family:var(--mono);font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">Nama *</label>
+        <input id="fName" placeholder="Z NewApp" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-family:var(--sans);font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">Health URL</label>
+        <input id="fHealthUrl" placeholder="https://znewapp.zomet.my.id/api/health" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-family:var(--mono);font-size:12px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.8px;display:block;margin-bottom:5px">GitHub Repo</label>
+        <input id="fGithubRepo" placeholder="djvpri/znewapp" style="width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:6px;font-family:var(--mono);font-size:13px">
+      </div>
+    </div>
+    <div id="modalError" style="color:var(--red);font-size:12px;margin-top:10px;display:none"></div>
+    <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="hideModal()">Batal</button>
+      <button class="btn btn-primary" id="modalSaveBtn" onclick="saveApp()">Simpan</button>
+    </div>
+  </div>
+</div>
+`
+document.body.insertAdjacentHTML('beforeend', modalHtml)
+
+function showAddAppModal() {
+  document.getElementById('modalTitle').textContent = 'Tambah App Baru'
+  document.getElementById('fSlug').value = ''
+  document.getElementById('fSlug').disabled = false
+  document.getElementById('fName').value = ''
+  document.getElementById('fHealthUrl').value = ''
+  document.getElementById('fGithubRepo').value = ''
+  document.getElementById('modalError').style.display = 'none'
+  document.getElementById('appModal').style.display = 'flex'
+  document.getElementById('fSlug').focus()
+}
+
+function hideModal() {
+  document.getElementById('appModal').style.display = 'none'
+}
+
+async function saveApp() {
+  const slug = document.getElementById('fSlug').value.trim()
+  const name = document.getElementById('fName').value.trim()
+  const healthUrl = document.getElementById('fHealthUrl').value.trim()
+  const githubRepo = document.getElementById('fGithubRepo').value.trim()
+
+  if (!slug || !name) {
+    showModalError('Slug dan Nama wajib diisi')
+    return
+  }
+
+  const btn = document.getElementById('modalSaveBtn')
+  btn.textContent = 'Menyimpan...'
+  btn.disabled = true
+
+  try {
+    const res = await fetch('/apps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, name, healthUrl: healthUrl || null, githubRepo: githubRepo || null })
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      showModalError(data.error || 'Gagal menyimpan')
+      return
+    }
+    hideModal()
+    pingApps()
+    loadData()
+  } catch (err) {
+    showModalError('Network error: ' + err.message)
+  } finally {
+    btn.textContent = 'Simpan'
+    btn.disabled = false
+  }
+}
+
+function showModalError(msg) {
+  const el = document.getElementById('modalError')
+  el.textContent = msg
+  el.style.display = 'block'
+}
+
+// Tutup modal klik di luar
+document.getElementById('appModal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('appModal')) hideModal()
+})
+
+// Override pingApps untuk baca dari /apps (DB) bukan hardcoded
+async function pingApps() {
+  const grid = document.getElementById('appsGrid')
+
+  let apps = []
+  try {
+    const res = await fetch('/apps')
+    apps = await res.json()
+  } catch {
+    grid.innerHTML = '<div style="color:var(--red);padding:12px">Gagal load daftar app</div>'
+    return
+  }
+
+  grid.innerHTML = apps.map(app => `
+    <div class="app-card ${app.lastStatus === 'healthy' ? 'healthy' : app.lastStatus === 'unknown' ? '' : 'unhealthy'}" id="app-${app.slug}">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div class="app-card-name">${app.name}</div>
+        <button onclick="removeApp('${app.slug}','${app.name}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;padding:0" title="Nonaktifkan">×</button>
+      </div>
+      <div class="app-card-status">
+        <div class="dot ${app.lastStatus === 'healthy' ? 'dot-green' : app.lastStatus === 'unknown' ? 'dot-gray' : 'dot-red'}"></div>
+        <span style="color:${app.lastStatus === 'healthy' ? 'var(--green)' : app.lastStatus === 'unknown' ? 'var(--text-muted)' : 'var(--red)'}">
+          ${app.lastStatus === 'healthy' ? 'Sehat' : app.lastStatus === 'unknown' ? 'Belum dicek' : app.lastStatus}
+        </span>
+      </div>
+      ${app.lastChecked ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px;font-family:var(--mono)">${timeAgo(app.lastChecked)}</div>` : ''}
+    </div>
+  `).join('')
+}
+
+async function removeApp(slug, name) {
+  if (!confirm(`Nonaktifkan "${name}" dari monitoring?`)) return
+  await fetch(`/apps/${slug}`, { method: 'DELETE' })
+  pingApps()
+}
+</script>

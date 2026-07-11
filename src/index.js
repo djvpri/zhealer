@@ -7,7 +7,10 @@ const { runScan } = require('./triggers/scanner')
 const { diagnoseIncident } = require('./analyzer/diagnosis')
 const { executeFix } = require('./executor/fixer')
 const { verifyFix } = require('./validator/verify')
-const { findPlaybook, createIncident, updateIncident, learnFromFix, prisma } = require('./db')
+const {
+  findPlaybook, createIncident, updateIncident, learnFromFix, prisma,
+  getActiveApps, addApp, updateApp, deleteApp, seedAppsIfEmpty
+} = require('./db')
 const config = require('./config')
 
 const app = express()
@@ -98,6 +101,48 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'))
 })
 
+// ─── Apps CRUD ─────────────────────────────────────────────────────────────
+
+// List semua app aktif
+app.get('/apps', async (req, res) => {
+  const apps = await getActiveApps()
+  res.json(apps)
+})
+
+// Tambah app baru
+app.post('/apps', async (req, res) => {
+  const { slug, name, healthUrl, githubRepo } = req.body
+  if (!slug || !name) return res.status(400).json({ error: 'slug dan name wajib diisi' })
+  try {
+    const app = await addApp({ slug, name, healthUrl: healthUrl || null, githubRepo: githubRepo || null })
+    res.json({ ok: true, app })
+  } catch (err) {
+    if (err.code === 'P2002') return res.status(409).json({ error: `App dengan slug "${slug}" sudah ada` })
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Update app
+app.patch('/apps/:slug', async (req, res) => {
+  const { name, healthUrl, githubRepo, isActive } = req.body
+  try {
+    const app = await updateApp(req.params.slug, { name, healthUrl, githubRepo, isActive })
+    res.json({ ok: true, app })
+  } catch (err) {
+    res.status(404).json({ error: `App "${req.params.slug}" tidak ditemukan` })
+  }
+})
+
+// Nonaktifkan app (soft delete)
+app.delete('/apps/:slug', async (req, res) => {
+  try {
+    await deleteApp(req.params.slug)
+    res.json({ ok: true, message: `App "${req.params.slug}" dinonaktifkan` })
+  } catch (err) {
+    res.status(404).json({ error: `App "${req.params.slug}" tidak ditemukan` })
+  }
+})
+
 // Proxy health check (hindari CORS issue dari browser)
 app.get('/proxy-health', async (req, res) => {
   const { url } = req.query
@@ -155,17 +200,23 @@ cron.schedule(config.CRON_INTERVAL, () => {
 
 // ─── Start server ──────────────────────────────────────────────────────────
 
-app.listen(config.PORT, () => {
+app.listen(config.PORT, async () => {
   console.log(`\n🏥 Zomet Healer berjalan di port ${config.PORT}`)
   console.log(`📅 Cron: ${config.CRON_INTERVAL}`)
   console.log(`🔍 Monitoring ${config.ZOMET_APPS.length} apps`)
   console.log(`🌐 Dashboard: http://localhost:${config.PORT}`)
   console.log(`\nEndpoints:`)
-  console.log(`  GET  /          — Dashboard UI`)
-  console.log(`  POST /trigger   — Manual trigger scan`)
-  console.log(`  GET  /health    — Health check`)
-  console.log(`  GET  /status    — Incident list`)
-  console.log(`  GET  /stats     — Stats summary\n`)
+  console.log(`  GET    /          — Dashboard UI`)
+  console.log(`  POST   /trigger   — Manual trigger scan`)
+  console.log(`  GET    /health    — Health check`)
+  console.log(`  GET    /status    — Incident list`)
+  console.log(`  GET    /apps      — List semua app`)
+  console.log(`  POST   /apps      — Tambah app baru`)
+  console.log(`  PATCH  /apps/:slug — Update app`)
+  console.log(`  DELETE /apps/:slug — Nonaktifkan app\n`)
+
+  // Seed apps dari config ke DB kalau masih kosong
+  await seedAppsIfEmpty(config.ZOMET_APPS)
 
   setTimeout(() => healLoop().catch(console.error), 5000)
 })
