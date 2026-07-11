@@ -65,19 +65,36 @@ async function healLoop() {
       const verification = await verifyFix(incident, fixResult)
       console.log(`[Healer] Verifikasi: ${JSON.stringify(verification)}`)
 
-      const resolved = verification.verified === true
+      // Tentukan status final
+      let finalStatus = 'fixing'
+      if (verification.verified === true) {
+        finalStatus = 'resolved'
+      } else if (fixResult.escalated) {
+        finalStatus = 'escalated'
+      } else if (verification.verified === 'pending_merge') {
+        finalStatus = 'pending_review'
+      } else if (fixResult.results?.some(r => r.action === 'railway_redeploy')) {
+        finalStatus = 'fixing' // tunggu verifikasi redeploy
+      }
       await updateIncident(dbIncident.id, {
-        status: resolved ? 'resolved' : fixResult.escalated ? 'escalated' : 'fixing',
+        status: finalStatus,
+        fixType: diagnosis.fix_type,
+        confidence: diagnosis.confidence,
         fixResult: JSON.stringify({ fixResult, verification }),
         prUrl: fixResult.results?.find(r => r.prUrl)?.prUrl || null,
-        resolvedAt: resolved ? new Date() : null
+        resolvedAt: finalStatus === 'resolved' ? new Date() : null
       })
 
-      if (resolved) {
+      if (finalStatus === 'resolved') {
         await learnFromFix(incident, diagnosis)
         console.log(`[Healer] ✅ ${incident.appSlug} berhasil di-fix!`)
-      } else if (fixResult.escalated) {
+      } else if (finalStatus === 'pending_review') {
+        const prUrl = fixResult.results?.find(r => r.prUrl)?.prUrl
+        console.log(`[Healer] 👀 ${incident.appSlug} menunggu review PR: ${prUrl}`)
+      } else if (finalStatus === 'escalated') {
         console.log(`[Healer] ⚠️ ${incident.appSlug} escalated: ${fixResult.reason}`)
+      } else {
+        console.log(`[Healer] 🔄 ${incident.appSlug} fixing, menunggu verifikasi...`)
       }
 
     } catch (err) {

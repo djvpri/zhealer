@@ -241,11 +241,13 @@
   .badge.open { background: var(--red-dim); color: var(--red); }
   .badge.fixing { background: var(--accent-dim); color: var(--accent); }
   .badge.escalated { background: var(--yellow-dim); color: var(--yellow); }
+  .badge.pending_review { background: #2d1b69; color: #a78bfa; }
 
   .badge.resolved .badge-dot { background: var(--green); }
   .badge.open .badge-dot { background: var(--red); }
   .badge.fixing .badge-dot { background: var(--accent); animation: pulse 1s infinite; }
   .badge.escalated .badge-dot { background: var(--yellow); }
+  .badge.pending_review .badge-dot { background: #a78bfa; }
 
   .error-type {
     font-family: var(--mono);
@@ -383,9 +385,9 @@
       <div class="stat-sub" id="statResolvedPct">—</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">Perlu Perhatian</div>
+      <div class="stat-label">Perlu Review</div>
       <div class="stat-value yellow" id="statEscalated">—</div>
-      <div class="stat-sub">eskalasi</div>
+      <div class="stat-sub">eskalasi + PR pending</div>
     </div>
     <div class="stat-card">
       <div class="stat-label">Sedang Proses</div>
@@ -411,6 +413,7 @@
         <option value="">Semua Status</option>
         <option value="open">Open</option>
         <option value="fixing">Fixing</option>
+        <option value="pending_review">Pending Review</option>
         <option value="resolved">Resolved</option>
         <option value="escalated">Escalated</option>
       </select>
@@ -525,12 +528,13 @@ async function loadData() {
     const total = incidents.length
     const resolved = incidents.filter(i => i.status === 'resolved').length
     const escalated = incidents.filter(i => i.status === 'escalated').length
+    const pendingReview = incidents.filter(i => i.status === 'pending_review').length
     const open = incidents.filter(i => i.status === 'open' || i.status === 'fixing').length
 
     document.getElementById('statTotal').textContent = total
     document.getElementById('statResolved').textContent = resolved
     document.getElementById('statResolvedPct').textContent = total ? `${Math.round(resolved/total*100)}% success rate` : '—'
-    document.getElementById('statEscalated').textContent = escalated
+    document.getElementById('statEscalated').textContent = escalated + pendingReview
     document.getElementById('statOpen').textContent = open
 
     // Update table
