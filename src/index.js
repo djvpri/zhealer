@@ -286,6 +286,23 @@ app.get('/export', async (req, res) => {
   res.send(lines)
 })
 
+// Manual cleanup — hapus incident lama
+app.post('/cleanup', async (req, res) => {
+  const days = parseInt(req.query.days) || 30
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  try {
+    const deleted = await prisma.incident.deleteMany({
+      where: {
+        status: { in: ['resolved', 'escalated'] },
+        createdAt: { lt: cutoff }
+      }
+    })
+    res.json({ ok: true, deleted: deleted.count, olderThanDays: days })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Stats summary
 app.get('/stats', async (req, res) => {
   const [total, resolved, escalated, open] = await Promise.all([
@@ -303,6 +320,24 @@ cron.schedule(config.CRON_INTERVAL, () => {
   healLoop().catch(err => {
     console.error('[Cron] Heal loop error:', err.message)
   })
+})
+
+// Cleanup harian jam 03:00 — hapus incident lama agar volume tidak penuh
+cron.schedule('0 3 * * *', async () => {
+  try {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 hari lalu
+    const deleted = await prisma.incident.deleteMany({
+      where: {
+        status: { in: ['resolved', 'escalated'] },
+        createdAt: { lt: cutoff }
+      }
+    })
+    if (deleted.count > 0) {
+      console.log(`[Cleanup] Hapus ${deleted.count} incident lama (>30 hari)`)
+    }
+  } catch (err) {
+    console.error('[Cleanup] Error:', err.message)
+  }
 })
 
 // ─── Start server ──────────────────────────────────────────────────────────
