@@ -203,30 +203,35 @@ app.get('/status', async (req, res) => {
   res.json(incidents)
 })
 
-// Export incidents sebagai CSV
+// Export incidents sebagai TXT
 app.get('/export', async (req, res) => {
   const incidents = await prisma.incident.findMany({
     orderBy: { createdAt: 'desc' },
     take: 200
   })
 
-  const header = 'id,appSlug,errorType,status,fixType,confidence,prUrl,createdAt,resolvedAt,errorRaw\n'
-  const rows = incidents.map(i => [
-    i.id,
-    i.appSlug,
-    i.errorType,
-    i.status,
-    i.fixType || '',
-    i.confidence || '',
-    i.prUrl || '',
-    i.createdAt?.toISOString() || '',
-    i.resolvedAt?.toISOString() || '',
-    `"${(i.errorRaw || '').replace(/"/g, '""').substring(0, 200)}"`
-  ].join(',')).join('\n')
+  const lines = [
+    'ZHEALER INCIDENT REPORT',
+    `Generated: ${new Date().toISOString()}`,
+    `Total: ${incidents.length} incidents`,
+    '='.repeat(60),
+    '',
+    ...incidents.map((i, idx) => [
+      `[${idx + 1}] ${i.appSlug} — ${i.errorType}`,
+      `  Status    : ${i.status}`,
+      `  Fix Type  : ${i.fixType || '-'}`,
+      `  Confidence: ${i.confidence || '-'}`,
+      `  PR URL    : ${i.prUrl || '-'}`,
+      `  Created   : ${i.createdAt?.toISOString() || '-'}`,
+      `  Resolved  : ${i.resolvedAt?.toISOString() || '-'}`,
+      `  Error     : ${(i.errorRaw || '').substring(0, 200)}`,
+      '',
+    ].join('\n'))
+  ].join('\n')
 
-  res.setHeader('Content-Type', 'text/csv')
-  res.setHeader('Content-Disposition', 'attachment; filename="zhealer-incidents.csv"')
-  res.send(header + rows)
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+  res.setHeader('Content-Disposition', 'attachment; filename="zhealer-incidents.txt"')
+  res.send(lines)
 })
 
 // Stats summary
