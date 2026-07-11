@@ -416,7 +416,7 @@
   <!-- Incidents table -->
   <div class="section-header">
     <div class="section-title">Riwayat Incident</div>
-    <div style="display:flex;gap:8px;align-items:center">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <select id="filterStatus" onchange="loadData()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
         <option value="">Semua Status</option>
         <option value="open">Open</option>
@@ -425,6 +425,22 @@
         <option value="resolved">Resolved</option>
         <option value="escalated">Escalated</option>
       </select>
+      <select id="filterApp" onchange="loadData()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
+        <option value="">Semua App</option>
+      </select>
+      <select id="filterErrorType" onchange="loadData()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
+        <option value="">Semua Error</option>
+        <option value="unreachable">Unreachable</option>
+        <option value="server_error">Server Error</option>
+        <option value="database_error">Database Error</option>
+        <option value="build_error">Build Error</option>
+        <option value="crash">Crash</option>
+      </select>
+      <input id="filterFrom" type="date" onchange="loadData()" title="Dari tanggal"
+        style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
+      <input id="filterTo" type="date" onchange="loadData()" title="Sampai tanggal"
+        style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
+      <button onclick="resetFilter()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer">✕ Reset</button>
     </div>
   </div>
   <div class="table-wrap">
@@ -605,13 +621,45 @@ async function pingApps() {
   }
 }
 
+function resetFilter() {
+  document.getElementById('filterStatus').value = ''
+  document.getElementById('filterApp').value = ''
+  document.getElementById('filterErrorType').value = ''
+  document.getElementById('filterFrom').value = ''
+  document.getElementById('filterTo').value = ''
+  loadData()
+}
+
+function populateAppFilter(incidents) {
+  const sel = document.getElementById('filterApp')
+  const current = sel.value
+  const slugs = [...new Set(incidents.map(i => i.appSlug))].sort()
+  sel.innerHTML = '<option value="">Semua App</option>' +
+    slugs.map(s => `<option value="${s}" ${s === current ? 'selected' : ''}>${s}</option>`).join('')
+}
+
 async function loadData() {
-  const filter = document.getElementById('filterStatus').value
-  const url = `/status${filter ? `?status=${filter}` : ''}`
+  const status    = document.getElementById('filterStatus').value
+  const app       = document.getElementById('filterApp').value
+  const errorType = document.getElementById('filterErrorType').value
+  const from      = document.getElementById('filterFrom').value
+  const to        = document.getElementById('filterTo').value
+
+  const params = new URLSearchParams()
+  if (status)    params.set('status', status)
+  if (app)       params.set('app', app)
+  if (errorType) params.set('errorType', errorType)
+  if (from)      params.set('from', from)
+  if (to)        params.set('to', to)
+
+  const url = `/status${params.toString() ? '?' + params.toString() : ''}`
 
   try {
     const res = await fetch(url)
     const incidents = await res.json()
+
+    // Populate filter App dari data aktual
+    populateAppFilter(incidents)
 
     // Update stats
     const total = incidents.length

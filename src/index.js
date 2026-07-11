@@ -216,12 +216,20 @@ app.get('/health', (req, res) => {
 
 // Incident list dengan filter opsional
 app.get('/status', async (req, res) => {
-  const { status } = req.query
-  const where = status ? { status } : {}
+  const { status, app, errorType, from, to } = req.query
+  const where = {}
+  if (status)    where.status = status
+  if (app)       where.appSlug = app
+  if (errorType) where.errorType = errorType
+  if (from || to) {
+    where.createdAt = {}
+    if (from) where.createdAt.gte = new Date(from)
+    if (to)   where.createdAt.lte = new Date(new Date(to).setHours(23, 59, 59, 999))
+  }
   const incidents = await prisma.incident.findMany({
     where,
     orderBy: { createdAt: 'desc' },
-    take: 50
+    take: 100
   })
   res.json(incidents)
 })
