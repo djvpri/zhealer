@@ -179,6 +179,32 @@ app.get('/status', async (req, res) => {
   res.json(incidents)
 })
 
+// Export incidents sebagai CSV
+app.get('/export', async (req, res) => {
+  const incidents = await prisma.incident.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 200
+  })
+
+  const header = 'id,appSlug,errorType,status,fixType,confidence,prUrl,createdAt,resolvedAt,errorRaw\n'
+  const rows = incidents.map(i => [
+    i.id,
+    i.appSlug,
+    i.errorType,
+    i.status,
+    i.fixType || '',
+    i.confidence || '',
+    i.prUrl || '',
+    i.createdAt?.toISOString() || '',
+    i.resolvedAt?.toISOString() || '',
+    `"${(i.errorRaw || '').replace(/"/g, '""').substring(0, 200)}"`
+  ].join(',')).join('\n')
+
+  res.setHeader('Content-Type', 'text/csv')
+  res.setHeader('Content-Disposition', 'attachment; filename="zhealer-incidents.csv"')
+  res.send(header + rows)
+})
+
 // Stats summary
 app.get('/stats', async (req, res) => {
   const [total, resolved, escalated, open] = await Promise.all([
