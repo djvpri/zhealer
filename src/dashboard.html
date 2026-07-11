@@ -373,7 +373,6 @@
   <div class="header-right">
     <span class="last-scan" id="lastScan">Memuat...</span>
     <div class="pulse" id="statusPulse"></div>
-    <button class="btn btn-ghost" onclick="window.location.href='/export'">⬇ Export TXT</button>
     <button class="btn btn-primary" onclick="triggerScan()">▶ Scan Sekarang</button>
   </div>
 </header>
@@ -440,6 +439,7 @@
         style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
       <input id="filterTo" type="date" onchange="loadData()" title="Sampai tanggal"
         style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--sans)">
+      <button onclick="exportTxt()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer">⬇ Export TXT</button>
       <button onclick="resetFilter()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);padding:5px 10px;border-radius:6px;font-size:12px;cursor:pointer">✕ Reset</button>
     </div>
   </div>
@@ -619,6 +619,21 @@ async function pingApps() {
       appStatuses[app.slug] = 'unreachable'
     }
   }
+}
+
+function exportTxt() {
+  const params = new URLSearchParams()
+  const status    = document.getElementById('filterStatus').value
+  const app       = document.getElementById('filterApp').value
+  const errorType = document.getElementById('filterErrorType').value
+  const from      = document.getElementById('filterFrom').value
+  const to        = document.getElementById('filterTo').value
+  if (status)    params.set('status', status)
+  if (app)       params.set('app', app)
+  if (errorType) params.set('errorType', errorType)
+  if (from)      params.set('from', from)
+  if (to)        params.set('to', to)
+  window.location.href = `/export${params.toString() ? '?' + params.toString() : ''}`
 }
 
 function resetFilter() {
