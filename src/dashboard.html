@@ -890,35 +890,6 @@ document.getElementById('appModal').addEventListener('click', (e) => {
   if (e.target === document.getElementById('appModal')) hideModal()
 })
 
-// Override pingApps untuk baca dari /apps (DB) bukan hardcoded
-async function pingApps() {
-  const grid = document.getElementById('appsGrid')
-
-  let apps = []
-  try {
-    const res = await fetch('/apps')
-    apps = await res.json()
-  } catch {
-    grid.innerHTML = '<div style="color:var(--red);padding:12px">Gagal load daftar app</div>'
-    return
-  }
-
-  grid.innerHTML = apps.map(app => `
-    <div class="app-card ${app.lastStatus === 'healthy' ? 'healthy' : app.lastStatus === 'unknown' ? '' : 'unhealthy'}" id="app-${app.slug}">
-      <div style="display:flex;justify-content:space-between;align-items:start">
-        <div class="app-card-name">${app.name}</div>
-        <button onclick="removeApp('${app.slug}','${app.name}')" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:14px;line-height:1;padding:0" title="Nonaktifkan">×</button>
-      </div>
-      <div class="app-card-status">
-        <div class="dot ${app.lastStatus === 'healthy' ? 'dot-green' : app.lastStatus === 'unknown' ? 'dot-gray' : 'dot-red'}"></div>
-        <span style="color:${app.lastStatus === 'healthy' ? 'var(--green)' : app.lastStatus === 'unknown' ? 'var(--text-muted)' : 'var(--red)'}">
-          ${app.lastStatus === 'healthy' ? 'Sehat' : app.lastStatus === 'unknown' ? 'Belum dicek' : app.lastStatus}
-        </span>
-      </div>
-      ${app.lastChecked ? `<div style="font-size:10px;color:var(--text-muted);margin-top:4px;font-family:var(--mono)">${timeAgo(app.lastChecked)}</div>` : ''}
-    </div>
-  `).join('')
-}
 
 async function removeApp(slug, name) {
   if (!confirm(`Nonaktifkan "${name}" dari monitoring?`)) return
