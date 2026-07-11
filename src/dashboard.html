@@ -736,12 +736,16 @@ async function triggerScan() {
   btn.disabled = true
   try {
     await fetch('/trigger', { method: 'POST' })
-    setTimeout(() => loadData(), 2000)
+    // Tunggu scanner selesai (~5 detik) lalu refresh semua
+    setTimeout(() => {
+      loadData()
+      pingApps()
+    }, 5000)
   } finally {
     setTimeout(() => {
       btn.textContent = '▶ Scan Sekarang'
       btn.disabled = false
-    }, 3000)
+    }, 6000)
   }
 }
 
