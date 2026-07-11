@@ -1,6 +1,8 @@
 const axios = require('axios')
 const { RAILWAY_API_URL, RAILWAY_TOKEN, HEALTH_CHECK_TIMEOUT } = require('../config')
 const { getActiveApps, updateAppStatus } = require('../db')
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
 
 async function railwayQuery(query, variables = {}) {
   const res = await axios.post(
@@ -74,6 +76,14 @@ async function pingHealthCheck(app) {
     await updateAppStatus(app.slug, ok ? 'healthy' : 'unhealthy')
     if (!ok) {
       return { status: 'unhealthy', app: app.slug, errorType: 'server_error', snippet: `HTTP ${res.status} dari ${app.healthUrl}` }
+    }
+    // App sehat — resolve semua incident open/fixing yang belum ditutup
+    const resolved = await prisma.incident.updateMany({
+      where: { appSlug: app.slug, status: { in: ['open', 'fixing'] } },
+      data: { status: 'resolved', resolvedAt: new Date() }
+    })
+    if (resolved.count > 0) {
+      console.log(`[Scanner] Auto-resolved ${resolved.count} incident lama untuk ${app.slug}`)
     }
     return { status: 'healthy', app: app.slug }
   } catch (err) {
