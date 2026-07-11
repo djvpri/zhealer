@@ -18,104 +18,127 @@ app.use(express.json())
 
 // ─── Core heal loop ────────────────────────────────────────────────────────
 
+let healRunning = false
+
 async function healLoop() {
+  if (healRunning) {
+    console.log('[Healer] Loop masih berjalan, skip cron ini.')
+    return
+  }
+  healRunning = true
+
   console.log('\n========================================')
   console.log('[Healer] Mulai heal loop...')
 
-  let incidents = []
-
   try {
-    incidents = await runScan()
-  } catch (err) {
-    console.error('[Healer] Scanner error:', err.message)
-    return
-  }
-
-  if (incidents.length === 0) {
-    console.log('[Healer] Semua app sehat. Tidak ada incident.')
-    return
-  }
-
-  console.log(`[Healer] ${incidents.length} incident ditemukan. Proses satu per satu...`)
-
-  for (const incident of incidents) {
-    console.log(`\n--- Proses: ${incident.appSlug} / ${incident.errorType} ---`)
-
-    // Skip kalau sudah ada incident terbuka untuk app+errorType yang sama
-    const existing = await findOpenIncident(incident.appSlug, incident.errorType)
-    if (existing) {
-      console.log(`[Healer] Skip — incident #${existing.id} sudah open untuk ${incident.appSlug}/${incident.errorType}`)
-      continue
-    }
-
-    let dbIncident
+    let incidents = []
     try {
-      dbIncident = await createIncident({
-        appSlug: incident.appSlug,
-        serviceId: incident.serviceId || '',
-        errorType: incident.errorType,
-        errorRaw: incident.errorRaw,
-        status: 'open'
-      })
-
-      const playbook = await findPlaybook(incident.errorType, incident.errorRaw)
-      const diagnosis = await diagnoseIncident(incident, playbook)
-      console.log(`[Healer] Diagnosis: ${diagnosis.fix_type} (confidence: ${diagnosis.confidence})`)
-
-      await updateIncident(dbIncident.id, {
-        status: 'fixing',
-        fixType: diagnosis.fix_type,
-        confidence: diagnosis.confidence
-      })
-
-      const fixResult = await executeFix(incident, diagnosis)
-      const verification = await verifyFix(incident, fixResult)
-      console.log(`[Healer] Verifikasi: ${JSON.stringify(verification)}`)
-
-      // Tentukan status final
-      let finalStatus = 'fixing'
-      if (verification.verified === true) {
-        finalStatus = 'resolved'
-      } else if (fixResult.escalated) {
-        finalStatus = 'escalated'
-      } else if (verification.verified === 'pending_merge') {
-        finalStatus = 'pending_review'
-      } else if (fixResult.results?.some(r => r.action === 'railway_redeploy')) {
-        finalStatus = 'fixing' // tunggu verifikasi redeploy
-      }
-      await updateIncident(dbIncident.id, {
-        status: finalStatus,
-        fixType: diagnosis.fix_type,
-        confidence: diagnosis.confidence,
-        fixResult: JSON.stringify({ fixResult, verification }),
-        prUrl: fixResult.results?.find(r => r.prUrl)?.prUrl || null,
-        resolvedAt: finalStatus === 'resolved' ? new Date() : null
-      })
-
-      if (finalStatus === 'resolved') {
-        await learnFromFix(incident, diagnosis)
-        console.log(`[Healer] ✅ ${incident.appSlug} berhasil di-fix!`)
-      } else if (finalStatus === 'pending_review') {
-        const prUrl = fixResult.results?.find(r => r.prUrl)?.prUrl
-        console.log(`[Healer] 👀 ${incident.appSlug} menunggu review PR: ${prUrl}`)
-      } else if (finalStatus === 'escalated') {
-        console.log(`[Healer] ⚠️ ${incident.appSlug} escalated: ${fixResult.reason}`)
-      } else {
-        console.log(`[Healer] 🔄 ${incident.appSlug} fixing, menunggu verifikasi...`)
-      }
-
+      incidents = await runScan()
     } catch (err) {
-      console.error(`[Healer] Error proses incident ${incident.appSlug}:`, err.message)
-      if (dbIncident) {
+      console.error('[Healer] Scanner error:', err.message)
+      return
+    }
+
+    if (incidents.length === 0) {
+      console.log('[Healer] Semua app sehat. Tidak ada incident.')
+      return
+    }
+
+    // Fetch app info sekali untuk semua incidents (untuk githubRepo dll)
+    let activeApps = []
+    try { activeApps = await getActiveApps() } catch {}
+
+    console.log(`[Healer] ${incidents.length} incident ditemukan. Proses satu per satu...`)
+
+    for (const incident of incidents) {
+      console.log(`\n--- Proses: ${incident.appSlug} / ${incident.errorType} ---`)
+
+      // Skip kalau sudah ada incident terbuka untuk app+errorType yang sama
+      const existing = await findOpenIncident(incident.appSlug, incident.errorType)
+      if (existing) {
+        console.log(`[Healer] Skip — incident #${existing.id} sudah open untuk ${incident.appSlug}/${incident.errorType}`)
+        continue
+      }
+
+      // Attach app info ke incident agar diagnosis tahu githubRepo dll
+      const appInfo = activeApps.find(a => a.slug === incident.appSlug)
+      const enrichedIncident = { ...incident, githubRepo: appInfo?.githubRepo || null }
+
+      let dbIncident
+      try {
+        dbIncident = await createIncident({
+          appSlug: incident.appSlug,
+          serviceId: incident.serviceId || '',
+          errorType: incident.errorType,
+          errorRaw: incident.errorRaw,
+          status: 'open'
+        })
+
+        const playbook = await findPlaybook(incident.errorType, incident.errorRaw)
+        const diagnosis = await diagnoseIncident(enrichedIncident, playbook)
+        console.log(`[Healer] Diagnosis: ${diagnosis.fix_type} (confidence: ${diagnosis.confidence})`)
+
         await updateIncident(dbIncident.id, {
-          status: 'escalated',
-          fixResult: `Internal error: ${err.message}`
-        }).catch(() => {})
+          status: 'fixing',
+          fixType: diagnosis.fix_type,
+          confidence: diagnosis.confidence
+        })
+
+        const fixResult = await executeFix(enrichedIncident, diagnosis)
+        const verification = await verifyFix(enrichedIncident, fixResult)
+        console.log(`[Healer] Verifikasi: ${JSON.stringify(verification)}`)
+
+        // Tentukan status final
+        let finalStatus
+        if (verification.verified === true) {
+          finalStatus = 'resolved'
+        } else if (fixResult.escalated) {
+          finalStatus = 'escalated'
+        } else if (verification.verified === 'pending_merge') {
+          finalStatus = 'pending_review'
+        } else if (verification.verified === false) {
+          // Fix tidak berhasil dalam waktu tunggu — eskalasi agar tidak stuck di fixing
+          finalStatus = 'escalated'
+        } else {
+          finalStatus = 'fixing'
+        }
+
+        await updateIncident(dbIncident.id, {
+          status: finalStatus,
+          fixType: diagnosis.fix_type,
+          confidence: diagnosis.confidence,
+          fixResult: JSON.stringify({ fixResult, verification }),
+          prUrl: fixResult.results?.find(r => r.prUrl)?.prUrl || null,
+          resolvedAt: finalStatus === 'resolved' ? new Date() : null
+        })
+
+        if (finalStatus === 'resolved') {
+          await learnFromFix(enrichedIncident, diagnosis)
+          console.log(`[Healer] ✅ ${incident.appSlug} berhasil di-fix!`)
+        } else if (finalStatus === 'pending_review') {
+          const prUrl = fixResult.results?.find(r => r.prUrl)?.prUrl
+          console.log(`[Healer] 👀 ${incident.appSlug} menunggu review PR: ${prUrl}`)
+        } else if (finalStatus === 'escalated') {
+          console.log(`[Healer] ⚠️ ${incident.appSlug} escalated: ${fixResult.reason || verification.reason || 'fix gagal'}`)
+        } else {
+          console.log(`[Healer] 🔄 ${incident.appSlug} fixing, menunggu verifikasi...`)
+        }
+
+      } catch (err) {
+        console.error(`[Healer] Error proses incident ${incident.appSlug}:`, err.message)
+        if (dbIncident) {
+          await updateIncident(dbIncident.id, {
+            status: 'escalated',
+            fixResult: `Internal error: ${err.message}`
+          }).catch(() => {})
+        }
       }
     }
-  }
 
-  console.log('\n[Healer] Heal loop selesai.')
+    console.log('\n[Healer] Heal loop selesai.')
+  } finally {
+    healRunning = false
+  }
 }
 
 // ─── HTTP endpoints ────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ const axios = require('axios')
 const { HEALTH_CHECK_TIMEOUT } = require('../config')
 const { getActiveApps } = require('../db')
 
-async function waitForDeployment(appSlug, maxWaitMs = 5 * 60 * 1000) {
+async function waitForDeployment(appSlug, maxWaitMs = 2 * 60 * 1000) {
   // Cari healthUrl dari DB, bukan dari config hardcoded
   const apps = await getActiveApps()
   const app = apps.find(a => a.slug === appSlug)
