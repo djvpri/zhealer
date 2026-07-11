@@ -9,7 +9,7 @@ const { executeFix } = require('./executor/fixer')
 const { verifyFix } = require('./validator/verify')
 const {
   findPlaybook, createIncident, updateIncident, findOpenIncident, learnFromFix, prisma,
-  getActiveApps, addApp, updateApp, deleteApp, seedAppsIfEmpty
+  getActiveApps, addApp, updateApp, deleteApp, syncAppsFromConfig
 } = require('./db')
 const config = require('./config')
 
@@ -265,8 +265,8 @@ app.listen(config.PORT, async () => {
   console.log(`  PATCH  /apps/:slug — Update app`)
   console.log(`  DELETE /apps/:slug — Nonaktifkan app\n`)
 
-  // Seed apps dari config ke DB kalau masih kosong
-  await seedAppsIfEmpty(config.ZOMET_APPS)
+  // Sync apps dari config ke DB (update githubRepo, healthUrl jika berubah)
+  await syncAppsFromConfig(config.ZOMET_APPS)
 
   setTimeout(() => healLoop().catch(console.error), 5000)
 })

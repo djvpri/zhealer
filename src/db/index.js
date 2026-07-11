@@ -40,7 +40,7 @@ async function findOpenIncident(appSlug, errorType) {
 }
 
 async function learnFromFix(incident, diagnosis) {
-  if (!incident.errorRaw || diagnosis.confidence < 90) return
+  if (!incident.errorRaw || diagnosis.confidence < 0.9) return
   try {
     // Gunakan snippet errorRaw sebagai pattern agar matching lebih akurat
     const pattern = incident.errorRaw.substring(0, 120).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -89,15 +89,16 @@ async function updateAppStatus(slug, status) {
   }).catch(() => {})
 }
 
-async function seedAppsIfEmpty(apps) {
-  const count = await prisma.zometApp.count()
-  if (count > 0) return
-
-  console.log('[DB] Seeding apps dari config...')
+async function syncAppsFromConfig(apps) {
+  console.log('[DB] Sync apps dari config ke database...')
   for (const app of apps) {
     await prisma.zometApp.upsert({
       where: { slug: app.slug },
-      update: {},
+      update: {
+        name: app.name,
+        healthUrl: app.healthUrl || null,
+        githubRepo: app.githubRepo || null
+      },
       create: {
         slug: app.slug,
         name: app.name,
@@ -107,11 +108,11 @@ async function seedAppsIfEmpty(apps) {
       }
     })
   }
-  console.log(`[DB] ${apps.length} apps di-seed ke database`)
+  console.log(`[DB] ${apps.length} apps synced ke database`)
 }
 
 module.exports = {
   prisma,
   findPlaybook, createIncident, updateIncident, findOpenIncident, learnFromFix,
-  getActiveApps, addApp, updateApp, deleteApp, updateAppStatus, seedAppsIfEmpty
+  getActiveApps, addApp, updateApp, deleteApp, updateAppStatus, syncAppsFromConfig
 }
