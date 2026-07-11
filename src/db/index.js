@@ -92,11 +92,14 @@ async function updateAppStatus(slug, status) {
 async function syncAppsFromConfig(apps) {
   console.log('[DB] Sync apps dari config ke database...')
   for (const app of apps) {
+    const existing = await prisma.zometApp.findUnique({ where: { slug: app.slug } })
     await prisma.zometApp.upsert({
       where: { slug: app.slug },
       update: {
         name: app.name,
-        healthUrl: app.healthUrl || null,
+        // Hanya update healthUrl dari config jika DB belum punya (null/kosong)
+        // Ini mencegah healthUrl yang diset manual via dashboard ter-override saat restart
+        ...(!existing?.healthUrl && app.healthUrl ? { healthUrl: app.healthUrl } : {}),
         githubRepo: app.githubRepo || null
       },
       create: {
