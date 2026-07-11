@@ -353,6 +353,14 @@
     main { padding: 16px; }
     th:nth-child(4), td:nth-child(4) { display: none; }
   }
+  /* Modal edit healthUrl */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center; }
+  .modal-box { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; width:480px; max-width:90vw; }
+  .modal-title { font-size:15px; font-weight:600; margin-bottom:16px; color:var(--text); }
+  .modal-label { font-size:12px; color:var(--text-dim); margin-bottom:6px; }
+  .modal-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-size:13px; font-family:monospace; box-sizing:border-box; }
+  .modal-hint { font-size:11px; color:var(--text-muted); margin-top:6px; }
+  .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:20px; }
 </style>
 </head>
 <body>
@@ -469,11 +477,72 @@ function statusBadge(status) {
   return `<span class="badge ${status}"><span class="badge-dot"></span>${status}</span>`
 }
 
+// Edit healthUrl modal
+function openEditModal(slug, name, currentHealthUrl) {
+  document.getElementById('editModalTitle').textContent = `Edit Health URL — ${name}`
+  document.getElementById('editSlug').value = slug
+  document.getElementById('editHealthUrl').value = currentHealthUrl || ''
+  document.getElementById('editModal').style.display = 'flex'
+  document.getElementById('editHealthUrl').focus()
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').style.display = 'none'
+}
+
+async function saveHealthUrl() {
+  const slug = document.getElementById('editSlug').value
+  const healthUrl = document.getElementById('editHealthUrl').value.trim() || null
+  const btn = document.getElementById('editSaveBtn')
+  btn.textContent = 'Menyimpan...'
+  btn.disabled = true
+
+  try {
+    const res = await fetch(`/apps/${slug}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ healthUrl })
+    })
+    const data = await res.json()
+    if (data.ok) {
+      closeEditModal()
+      pingApps()
+    } else {
+      alert('Gagal: ' + (data.error || 'Unknown error'))
+    }
+  } catch (err) {
+    alert('Error: ' + err.message)
+  } finally {
+    btn.textContent = 'Simpan'
+    btn.disabled = false
+  }
+}
+
 async function pingApps() {
+  // Load app list dari DB (bukan hardcoded) supaya healthUrl selalu up-to-date
+  let dbApps = []
+  try {
+    const res = await fetch('/apps')
+    dbApps = await res.json()
+  } catch {
+    dbApps = []
+  }
+
+  // Merge dengan ZOMET_APPS untuk nama display, prioritaskan healthUrl dari DB
+  const apps = ZOMET_APPS.map(local => {
+    const db = dbApps.find(d => d.slug === local.slug)
+    return { ...local, healthUrl: db?.healthUrl ?? local.healthUrl }
+  })
+
   const grid = document.getElementById('appsGrid')
-  grid.innerHTML = ZOMET_APPS.map(app => `
+  grid.innerHTML = apps.map(app => `
     <div class="app-card checking" id="app-${app.slug}">
-      <div class="app-card-name">${app.name}</div>
+      <div class="app-card-name">
+        ${app.name}
+        <button onclick="openEditModal('${app.slug}','${app.name}','${app.healthUrl || ''}')"
+          title="Edit Health URL"
+          style="float:right;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:13px;padding:0 2px">✏️</button>
+      </div>
       <div class="app-card-status">
         <div class="dot dot-gray"></div>
         <span style="color:var(--text-muted)">Mengecek...</span>
@@ -481,11 +550,16 @@ async function pingApps() {
     </div>
   `).join('')
 
-  for (const app of ZOMET_APPS) {
+  for (const app of apps) {
     const card = document.getElementById(`app-${app.slug}`)
     if (!app.healthUrl) {
       card.innerHTML = `
-        <div class="app-card-name">${app.name}</div>
+        <div class="app-card-name">
+          ${app.name}
+          <button onclick="openEditModal('${app.slug}','${app.name}','')"
+            title="Set Health URL"
+            style="float:right;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:13px;padding:0 2px">✏️</button>
+        </div>
         <div class="app-card-status"><div class="dot dot-gray"></div><span style="color:var(--text-muted)">No health check</span></div>
       `
       appStatuses[app.slug] = 'unknown'
@@ -498,7 +572,12 @@ async function pingApps() {
       const ok = data.ok
       card.className = `app-card ${ok ? 'healthy' : 'unhealthy'}`
       card.innerHTML = `
-        <div class="app-card-name">${app.name}</div>
+        <div class="app-card-name">
+          ${app.name}
+          <button onclick="openEditModal('${app.slug}','${app.name}','${app.healthUrl}')"
+            title="Edit Health URL"
+            style="float:right;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:13px;padding:0 2px">✏️</button>
+        </div>
         <div class="app-card-status">
           <div class="dot ${ok ? 'dot-green' : 'dot-red'}"></div>
           <span style="color:${ok ? 'var(--green)' : 'var(--red)'}">${ok ? 'Sehat' : 'Error'}</span>
@@ -508,7 +587,12 @@ async function pingApps() {
     } catch {
       card.className = 'app-card unhealthy'
       card.innerHTML = `
-        <div class="app-card-name">${app.name}</div>
+        <div class="app-card-name">
+          ${app.name}
+          <button onclick="openEditModal('${app.slug}','${app.name}','${app.healthUrl}')"
+            title="Edit Health URL"
+            style="float:right;background:none;border:none;cursor:pointer;color:var(--text-dim);font-size:13px;padding:0 2px">✏️</button>
+        </div>
         <div class="app-card-status"><div class="dot dot-red"></div><span style="color:var(--red)">Tidak bisa direach</span></div>
       `
       appStatuses[app.slug] = 'unreachable'
@@ -599,6 +683,25 @@ setInterval(loadData, 30000)
 loadData()
 pingApps()
 </script>
+<!-- Modal Edit Health URL -->
+<div id="editModal" class="modal-overlay" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="editModalTitle">Edit Health URL</div>
+    <input type="hidden" id="editSlug">
+    <div class="modal-label">Health Check URL</div>
+    <input class="modal-input" id="editHealthUrl" type="url"
+      placeholder="https://app-production.up.railway.app/api/health">
+    <div class="modal-hint">
+      Kosongkan untuk pakai URL default dari kolom URL app.<br>
+      Isi dengan Railway URL jika custom domain belum jalan.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Batal</button>
+      <button class="btn btn-primary" id="editSaveBtn" onclick="saveHealthUrl()">Simpan</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
 <script>
