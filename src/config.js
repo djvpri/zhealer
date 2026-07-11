@@ -42,7 +42,7 @@ module.exports = {
     { slug: 'zbilliar',   name: 'ZBilliar',    healthUrl: 'https://zbilliar.zomet.my.id/api/health',                       githubRepo: 'zbilliar' },
     { slug: 'zprint',     name: 'ZPrint',      healthUrl: 'https://zprint.zomet.my.id/api/health',                         githubRepo: 'ZPrint' },
     { slug: 'zwisata',    name: 'ZWisata',     healthUrl: 'https://zwisata.zomet.my.id/api/health',                        githubRepo: 'zwisata' },
-    { slug: 'zanalytics', name: 'Z Analytics', healthUrl: 'https://zanalytics.zomet.my.id/api/health',                     githubRepo: 'z_analytics' },
+    { slug: 'zanalytics', name: 'Z Analytics', healthUrl: 'https://zanalytics-production.up.railway.app/api/health',      githubRepo: 'z_analytics' },
     { slug: 'zadv',       name: 'ZAdv',        healthUrl: 'https://zadv-production.up.railway.app/api/health',             githubRepo: 'Zadv' },
     { slug: 'zbackup',    name: 'ZBackup',     healthUrl: 'https://zbackup-production.up.railway.app/api/health',          githubRepo: null },
     { slug: 'zbanker',    name: 'Z Banker',    healthUrl: 'https://zbanker.zomet.my.id/api/health',                        githubRepo: 'z_banker' },
